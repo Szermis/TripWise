@@ -1,0 +1,43 @@
+version: "3.8"
+
+services:
+  ui:
+    image: ui
+    build:
+      context: ./ui
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./ui:/usr/app
+
+  api:
+    image: api
+    build:
+      context: ./api
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./api:/usr/app
+
+  # docs:
+  #   image: docs
+  #   build:
+  #     context: ./documentation
+  #   ports:
+  #   - "9999:9999"
+  #   volumes:
+  #     - ./documentation:/usr/app
+
+  # postgres:
+  #   image: postgres
+  #   environment:
+  #     POSTGRES_DB: db
+  #     POSTGRES_USER: user
+  #     POSTGRES_PASSWORD: password123!
+  #     PGDATA: /data/postgres
+  #   ports:
+  #     - "5432:5432"
+  #   volumes:
+  #     - /var/lib/postgres:/data/postgres
+  #   expose:
+  #     - 5432
