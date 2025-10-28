@@ -16,6 +16,7 @@ ENV APP_MODULE=main:app
 ENV HOST=0.0.0.0
 ENV PORT=8000
 
+
 EXPOSE 8000
 
 # ---------- Run the Application ----------
