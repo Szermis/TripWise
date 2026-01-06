@@ -1,0 +1,177 @@
+#!/usr/bin/env python3
+"""Ingest Restaurants from OpenStreetMap Nominatim API into Neo4j
+
+This script can fetch an API response (array of restaurant-like places) or ingest
+from a local JSON file and upsert Restaurant nodes with:
+- name: from the API (prefers 'name' then 'display_name')
+- rating: default 0 (no rating from API)
+- cuisine: inferred from common cuisine keywords in name/address
+
+Usage:
+  python ingest_restaurants_api.py --source api --api '<url>'
+  python ingest_restaurants_api.py --source file --path data/restaurants.json
+"""
+
+import argparse
+import json
+import sys
+from typing import List, Dict, Any
+
+try:
+    from neo4j import GraphDatabase
+except Exception:
+    print(
+        "Missing neo4j-driver. Install with: pip install neo4j-driver", file=sys.stderr
+    )
+    sys.exit(1)
+
+try:
+    import requests
+except Exception:
+    requests = None  # optional; only used when using --api
+
+URI = "bolt://localhost:7687"
+USER = "neo4j"
+PASSWORD = "password123"
+
+driver = GraphDatabase.driver(URI, auth=(USER, PASSWORD))
+
+headers = {'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_11_5) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/50.0.2661.102 Safari/537.36'}
+
+CUISINE_KEYWORDS = [
+    "Japanese",
+    "Chinese",
+    "Korean",
+    "Thai",
+    "Indian",
+    "Vietnamese",
+    "Mexican",
+    "American",
+    "Italian",
+    "French",
+    "Turkish",
+    "Greek",
+    "Spanish",
+    "Mediterranean",
+    "Lebanese",
+    "Middle Eastern",
+    "Thai",
+    "Asian",
+    " barbecue",
+    "Barbecue",
+]
+
+
+def guess_cuisine_from_text(text: str) -> str:
+    t = (text or "").lower()
+    for kw in CUISINE_KEYWORDS:
+        if kw.lower() in t:
+            return kw
+    return "Unknown"
+
+
+def extract_name(item: Dict[str, Any]) -> str:
+    if isinstance(item.get("name"), str) and item["name"]:
+        return item["name"]
+    if isinstance(item.get("display_name"), str) and item["display_name"]:
+        return item["display_name"]
+    addr = item.get("address", {}) or {}
+    if isinstance(addr, dict) and addr.get("amenity"):
+        return addr["amenity"]
+    return "Unknown Restaurant"
+
+
+def normalize_item(item: Dict[str, Any]) -> Dict[str, Any]:
+    name = extract_name(item)
+    text_sources = []
+    if isinstance(item, dict):
+        text_sources.append(str(item.get("name")))
+        text_sources.append(str(item.get("display_name")))
+        if isinstance(item.get("address"), dict):
+            for v in item["address"].values():
+                if isinstance(v, str):
+                    text_sources.append(v)
+    combined = " ".join([t for t in text_sources if t])
+    cuisine = guess_cuisine_from_text(combined)
+    rating = 0.0
+    return {"name": name, "rating": rating, "cuisine": cuisine}
+
+
+def load_restaurants(tx, rows: List[Dict[str, Any]]):
+    tx.run(
+        """
+        UNWIND $rows AS row
+        MERGE (r:Restaurant {name: row.name})
+        SET r.rating = CASE
+                           WHEN toFloat(row.rating) < 0 THEN 0
+                           WHEN toFloat(row.rating) > 5 THEN 5
+                           ELSE toFloat(row.rating)
+                         END,
+            r.cuisine = row.cuisine
+        """,
+        rows=rows,
+    )
+
+
+def ingest(rows: List[Dict[str, Any]]):
+    with driver.session() as session:
+        session.write_transaction(load_restaurants, rows)
+
+url = "https://nominatim.openstreetmap.org/search?addressdetails=1&format=jsonv2&limit=1&q=warsaw+restaurant+asian"
+
+def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument(
+        "--source",
+        choices=["api", "file"],
+        required=True,
+        help="Source of data: 'api' to fetch or 'file' to read local JSON",
+    )
+    parser.add_argument(
+        "--api", help="API URL returning JSON array of restaurant-like objects"
+    )
+    parser.add_argument(
+        "--path", help="Path to JSON file containing restaurant-like objects (array)"
+    )
+    args = parser.parse_args()
+
+    data = []
+    if args.source == "api":
+        if not args.api:
+            print("Please provide --api URL to fetch data from.", file=sys.stderr)
+            # sys.exit(2)
+        if requests is None:
+            print("Requests library is required to fetch API data.", file=sys.stderr)
+            sys.exit(3)
+        resp = requests.get(url, headers=headers)
+        resp.raise_for_status()
+        data = resp.json()
+    else:
+        if not args.path:
+            print("Please provide --path to the input JSON file.", file=sys.stderr)
+            sys.exit(2)
+        with open(args.path, "r", encoding="utf-8") as f:
+            data = json.load(f)
+
+    if not isinstance(data, list):
+        print("Error: expected JSON array of items.", file=sys.stderr)
+        sys.exit(4)
+
+    rows = []
+    for item in data:
+        if not isinstance(item, dict):
+            continue
+        norm = normalize_item(item)
+        if norm.get("name"):
+            rows.append(norm)
+
+    if not rows:
+        print("No valid restaurant records found.")
+        sys.exit(0)
+
+    ingest(rows)
+    print(f"Ingested {len(rows)} restaurants into Neo4j.")
+
+
+if __name__ == "__main__":
+    main()

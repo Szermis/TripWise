@@ -1,0 +1,5 @@
+[
+  {"name": "Sushi Aurora", "rating": 4.6, "cuisine": "Japanese"},
+  {"name": "Taco Loco", "rating": 4.2, "cuisine": "Mexican"},
+  {"name": "Burger Haven", "rating": 4.0, "cuisine": "American"}
+]
