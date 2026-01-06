@@ -117,7 +117,8 @@ def ingest(rows: List[Dict[str, Any]]):
     with driver.session() as session:
         session.write_transaction(load_restaurants, rows)
 
-url = "https://nominatim.openstreetmap.org/search?addressdetails=1&format=jsonv2&limit=1&q=warsaw+restaurant+asian"
+url = "https://nominatim.openstreetmap.org/search?addressdetails=1&format=jsonv2&limit=1&q="
+query = "warsaw+restaurant+asian"
 
 def main():
     parser = argparse.ArgumentParser()
@@ -128,7 +129,7 @@ def main():
         help="Source of data: 'api' to fetch or 'file' to read local JSON",
     )
     parser.add_argument(
-        "--api", help="API URL returning JSON array of restaurant-like objects"
+        "--query", help="query"
     )
     parser.add_argument(
         "--path", help="Path to JSON file containing restaurant-like objects (array)"
@@ -137,13 +138,11 @@ def main():
 
     data = []
     if args.source == "api":
-        if not args.api:
-            print("Please provide --api URL to fetch data from.", file=sys.stderr)
-            # sys.exit(2)
         if requests is None:
             print("Requests library is required to fetch API data.", file=sys.stderr)
             sys.exit(3)
-        resp = requests.get(url, headers=headers)
+        query = args.query
+        resp = requests.get(url + query, headers=headers)
         resp.raise_for_status()
         data = resp.json()
     else:
