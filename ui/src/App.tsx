@@ -1,35 +1,77 @@
-import { useState } from 'react'
-import reactLogo from './assets/react.svg'
-import viteLogo from '/vite.svg'
-import './App.css'
+import {Separator} from "@/components/ui/separator"
+import {
+    SidebarInset,
+    SidebarProvider,
+    SidebarTrigger,
+} from "@/components/ui/sidebar"
 
-function App() {
-  const [count, setCount] = useState(0)
+import ChatMessages from "./components/chat-messages"
+import ChatInput from "@/components/chat-input.tsx";
+import {useState} from "react"
+import {AppSidebar} from "@/components/app-sidebar.tsx";
 
-  return (
-    <>
-      <div>
-        <a href="https://vite.dev" target="_blank">
-          <img src={viteLogo} className="logo" alt="Vite logo" />
-        </a>
-        <a href="https://react.dev" target="_blank">
-          <img src={reactLogo} className="logo react" alt="React logo" />
-        </a>
-      </div>
-      <h1>Vite + React</h1>
-      <div className="card">
-        <button onClick={() => setCount((count) => count + 1)}>
-          count is {count}
-        </button>
-        <p>
-          Edit <code>src/App.tsx</code> and save to test HMR
-        </p>
-      </div>
-      <p className="read-the-docs">
-        Click on the Vite and React logos to learn more
-      </p>
-    </>
-  )
+export default function App() {
+    const [messages, setMessages] = useState([
+        {type: "assistant", content: "Hi, how can I help you today?"},
+    ])
+    // const [value, setValue] = useState("")
+    const [loading, setLoading] = useState(false)
+
+    async function handleSubmit(e: React.FormEvent) {
+        e.preventDefault()
+        const value = e.currentTarget.message.value.trim()
+        e.currentTarget.reset()
+        if (!value.trim() || loading) return
+
+        const message = value
+        setLoading(true)
+        setMessages((prev) => [...prev, {type: "user", content: message}])
+
+
+        try {
+            const res = await fetch("http://localhost:8000/api/v1/chat/message", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                },
+                body: JSON.stringify({message}),
+            })
+
+            if (!res.ok) {
+                throw new Error("Request failed")
+            }
+
+            const data = await res.json()
+            setMessages((prev) => [...prev, {type: "assistant", content: data.result}])
+        } catch (err) {
+            console.error(err)
+            setMessages((prev) => [...prev, {type: "assistant", content: "❌ Failed to send message"}])
+        } finally {
+            setLoading(false)
+        }
+    }
+
+    return (
+        <SidebarProvider>
+            <AppSidebar/>
+            <SidebarInset>
+                <div className="flex flex-col items-center max-h-screen overflow-hiddens">
+                    <header
+                        className="flex h-16 w-full shrink-0 items-center gap-2 transition-[width,height] ease-linear group-has-data-[collapsible=icon]/sidebar-wrapper:h-12">
+                        <div className="flex items-center gap-2 px-4">
+                            <SidebarTrigger className="-ml-1"/>
+                            <Separator
+                                orientation="vertical"
+                                className="mr-2 data-[orientation=vertical]:h-4"
+                            />
+                        </div>
+                    </header>
+                    <ChatMessages messages={messages} isLoading={loading}/>
+                    <div className="w-full">
+                        <ChatInput onSubmit={handleSubmit} isLoading={loading}/>
+                    </div>
+                </div>
+            </SidebarInset>
+        </SidebarProvider>
+    )
 }
-
-export default App
