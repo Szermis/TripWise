@@ -1,3 +1,6 @@
+import json
+
+from pydantic import field_validator
 from pydantic_settings import BaseSettings
 
 
@@ -16,6 +19,17 @@ class Settings(BaseSettings):
 
     # CORS
     ALLOWED_ORIGINS: list[str] = ["http://localhost:3000"]
+
+    @field_validator("ALLOWED_ORIGINS", mode="before")
+    def parse_allowed_origins(cls, v):
+        if isinstance(v, str):
+            # Try JSON first
+            try:
+                return json.loads(v)
+            except json.JSONDecodeError:
+                # Fallback to comma-separated
+                return [item.strip() for item in v.split(",")]
+        return v
 
     class Config:
         env_file = ".env"
