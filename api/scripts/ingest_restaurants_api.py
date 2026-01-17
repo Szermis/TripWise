@@ -114,7 +114,7 @@ def ingest(rows: List[Dict[str, Any]]):
     with driver.session() as session:
         session.write_transaction(load_restaurants, rows)
 
-url = "https://nominatim.openstreetmap.org/search?addressdetails=1&format=jsonv2&limit=1&q="
+url = "https://nominatim.openstreetmap.org/search?addressdetails=1&format=jsonv2&limit=10&q="
 
 def main():
     parser = argparse.ArgumentParser()
@@ -131,7 +131,7 @@ def main():
 # query = "warsaw+restaurant+asian"
 def download_to_db(place:str, type:str):
     data = []
-    resp = requests.get(url + place + "+" + type, headers=headers)
+    resp = requests.get(url + place + "+restaurant+" + type, headers=headers)
     resp.raise_for_status()
     data = resp.json()
 
