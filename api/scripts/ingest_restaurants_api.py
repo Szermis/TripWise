@@ -25,10 +25,7 @@ except Exception:
     )
     sys.exit(1)
 
-try:
-    import requests
-except Exception:
-    requests = None  # optional; only used when using --api
+import requests
 
 URI = "bolt://localhost:7687"
 USER = "neo4j"
@@ -118,43 +115,23 @@ def ingest(rows: List[Dict[str, Any]]):
         session.write_transaction(load_restaurants, rows)
 
 url = "https://nominatim.openstreetmap.org/search?addressdetails=1&format=jsonv2&limit=1&q="
-query = "warsaw+restaurant+asian"
 
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument(
-        "--source",
-        choices=["api", "file"],
-        required=True,
-        help="Source of data: 'api' to fetch or 'file' to read local JSON",
-    )
-    parser.add_argument(
         "--query", help="query"
     )
-    parser.add_argument(
-        "--path", help="Path to JSON file containing restaurant-like objects (array)"
-    )
     args = parser.parse_args()
+    query = args.query
+    download_to_db(query)
 
+
+# query = "warsaw+restaurant+asian"
+def download_to_db(query: str):
     data = []
-    if args.source == "api":
-        if requests is None:
-            print("Requests library is required to fetch API data.", file=sys.stderr)
-            sys.exit(3)
-        query = args.query
-        resp = requests.get(url + query, headers=headers)
-        resp.raise_for_status()
-        data = resp.json()
-    else:
-        if not args.path:
-            print("Please provide --path to the input JSON file.", file=sys.stderr)
-            sys.exit(2)
-        with open(args.path, "r", encoding="utf-8") as f:
-            data = json.load(f)
-
-    if not isinstance(data, list):
-        print("Error: expected JSON array of items.", file=sys.stderr)
-        sys.exit(4)
+    resp = requests.get(url + query, headers=headers)
+    resp.raise_for_status()
+    data = resp.json()
 
     rows = []
     for item in data:
@@ -170,6 +147,7 @@ def main():
 
     ingest(rows)
     print(f"Ingested {len(rows)} restaurants into Neo4j.")
+
 
 
 if __name__ == "__main__":
