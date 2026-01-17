@@ -119,17 +119,19 @@ url = "https://nominatim.openstreetmap.org/search?addressdetails=1&format=jsonv2
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument(
-        "--query", help="query"
+        "--place", help="place"
+    )
+    parser.add_argument(
+        "--type", help="type"
     )
     args = parser.parse_args()
-    query = args.query
-    download_to_db(query)
+    download_to_db(args.place, args.type)
 
 
 # query = "warsaw+restaurant+asian"
-def download_to_db(query: str):
+def download_to_db(place:str, type:str):
     data = []
-    resp = requests.get(url + query, headers=headers)
+    resp = requests.get(url + place + "+" + type, headers=headers)
     resp.raise_for_status()
     data = resp.json()
 
