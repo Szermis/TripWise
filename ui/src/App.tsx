@@ -29,7 +29,9 @@ export default function App() {
 
 
         try {
-            const res = await fetch("http://localhost:8000/api/v1/chat/message", {
+            // in React
+
+            const res = await fetch(`${import.meta.env.VITE_API_URL}/chat/message`, {
                 method: "POST",
                 headers: {
                     "Content-Type": "application/json",
