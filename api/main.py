@@ -4,9 +4,9 @@ import uvicorn
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from api import chat
+from core import chat
 from core.config import settings
-from db import database
+from core import database
 
 
 def create_app() -> FastAPI:
@@ -31,7 +31,7 @@ def create_app() -> FastAPI:
     # ---- Routers ----
     # app.include_router(users.router, prefix="/api/v1/users", tags=["Users"])
     # app.include_router(trips.router, prefix="/api/v1/trips", tags=["Trips"])
-    app.include_router(chat.router, prefix="/api/v1/chat", tags=["AI Assistant"])
+    app.include_router(chat.router, prefix=f"{settings.API_V1_STR}/chat", tags=["AI Assistant"])
 
     # ---- Startup & Shutdown Events ----
     @app.on_event("startup")
