@@ -3,8 +3,7 @@ from openai import OpenAI
 from neo4j import GraphDatabase
 import requests
 import os
-import csv
-import pandas
+import json
 
 client = OpenAI(
     # This is the default and can be omitted
@@ -37,42 +36,59 @@ def fetch_menu_data(name: str, place: str):
             input=html.text,
         )
 
-        csv_resp = client.responses.create(
-            model="gpt-5-nano",
-            instructions="1. Carefully read the text provided by the user. 2. Identify any dishes mentioned and list them in CSV format with each value enclosed in quotes. The first column should be labelled 'Dish' and contain the dish name. The second column should be labelled 'Price' and contain the dishes price. Ommit the data about the currency 3. If you don’t know a value, say 'unknown'. ",
-            input=response.output_text,
-        )
+        # csv_resp = client.responses.create(
+        #     model="gpt-5-nano",
+        #     instructions="1. Carefully read the text provided by the user. 2. Identify any dishes mentioned and list them in CSV format with each value enclosed in quotes. The first column should be labelled 'Dish' and contain the dish name. The second column should be labelled 'Price' and contain the dishes price. Ommit the data about the currency 3. If you don’t know a value, say 'unknown'. ",
+        #     input=response.output_text,
+        # )
+
+        insert_from_json(name, response.output_text)
 
 
-def insert_from_csv(
-    rest_name: str, csv_path: str, delimiter: str = ",", encoding: str = "utf-8"
-):
-    rows = []
+def insert_from_json(rest_name: str, json_string: str, delimiter: str = ","):
+    # Normalize input to a list of dicts with keys 'dish' and 'price'
+    items = []
+    if not json_string:
+        print(f"No json data to insert for {rest_name}")
+        return
+
     try:
-        with open(csv_path, newline="", encoding=encoding) as f:
-            reader = csv.DictReader(f, delimiter=delimiter)
-            for row in reader:
-                dish = (row.get("Dish") or row.get("dish") or "").strip()
-                if not dish:
-                    continue
-                price_raw = (row.get("Price") or row.get("price") or "").strip()
-                price = None
-                if price_raw and price_raw.lower() != "unknown":
-                    try:
-                        price = float(price_raw)
-                    except ValueError:
-                        price = None
-                rows.append({"dish": dish, "price": price})
+        data = json.loads(json_string)
     except Exception as e:
-        print(f"Error reading CSV: {e}")
-        return
+        print(f"Failed to parse JSON data: {e}")
+        # Fallback: attempt simple CSV-like parsing
+        data = []
+        lines = [l.strip() for l in json_string.splitlines() if l.strip()]
+        for line in lines:
+            parts = [p.strip() for p in line.split(delimiter)]
+            if len(parts) >= 1:
+                dish = parts[0]
+                price = parts[1] if len(parts) > 1 else None
+                data.append({"dish": dish, "price": price})
 
-    if not rows:
-        print("No valid rows found in CSV.")
-        return
+    # Normalize to expected structure: list of {"dish": ..., "price": ...}
+    if isinstance(data, dict):
+        if "dish" in data or "name" in data:
+            dish = data.get("dish") or data.get("name")
+            price = data.get("price")
+            items = [{"dish": str(dish), "price": price}]
+        else:
+            items = []
+    elif isinstance(data, list):
+        for row in data:
+            if isinstance(row, dict):
+                dish = row.get("dish") or row.get("name") or row.get("item")
+                price = row.get("price")
+                if dish is not None:
+                    items.append({"dish": str(dish), "price": price})
+            else:
+                continue
+    else:
+        items = []
 
-    for row in rows:
-        pass
+    if not items:
+        print(f"No valid menu items extracted for {rest_name}")
+        return
 
     with driver.session() as session:
 
@@ -91,9 +107,8 @@ def insert_from_csv(
                 rows=rows_param,
             )
 
-        session.execute_write(_bulk, rest_name, rows)
+        session.execute_write(_bulk, rest_name, items)
 
 
 if __name__ == "__main__":
-    # fetch_menu_data("Restauracja Studencka", "Warszawa")
-    insert_from_csv("Restauracja Studencka", "buff.csv")
+    fetch_menu_data("Restauracja Studencka", "Warszawa")
