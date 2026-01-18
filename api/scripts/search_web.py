@@ -23,26 +23,25 @@ driver = GraphDatabase.driver(URI, auth=(USER, PASSWORD))
 
 
 def fetch_menu_data(name: str, place: str):
-    select = f"MATCH (n:Restaurant:{{name: '{name}'}}) RETURN n"
-
-    results = DDGS().text(name + " " + place + " menu", max_results=1)
+    results = DDGS().text(name + " " + place + " menu", max_results=3)
+    print("Search for menu items in: " + name)
 
     for res in results:
         html = requests.get(res["href"], headers=headers)
 
-        response = client.responses.create(
-            model="gpt-5-nano",
-            instructions="Bellow are contents of a page in html format. What can I order from the menu? Format the output as json containing an array of dishes and their prices",
-            input=html.text,
-        )
+        website = html.text[:300_000]
 
-        # csv_resp = client.responses.create(
-        #     model="gpt-5-nano",
-        #     instructions="1. Carefully read the text provided by the user. 2. Identify any dishes mentioned and list them in CSV format with each value enclosed in quotes. The first column should be labelled 'Dish' and contain the dish name. The second column should be labelled 'Price' and contain the dishes price. Ommit the data about the currency 3. If you don’t know a value, say 'unknown'. ",
-        #     input=response.output_text,
-        # )
+        try:
+            response = client.responses.create(
+                model="gpt-5-nano",
+                instructions="Bellow are contents of a page in html format. What can I order from the menu? Format the output as json containing an array of dishes and their prices",
+                input=website,
+            )
+            output = response.output_text
 
-        insert_from_json(name, response.output_text)
+            insert_from_json(name, output)
+        except:
+                print("Website to big")
 
 
 def insert_from_json(rest_name: str, json_string: str, delimiter: str = ","):
