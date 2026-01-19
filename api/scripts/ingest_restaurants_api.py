@@ -18,7 +18,7 @@ import sys
 from typing import List, Dict, Any
 
 try:
-    from neo4j import GraphDatabase
+    from neo4j import GraphDatabase, Result, Record
 except Exception:
     print(
         "Missing neo4j-driver. Install with: pip install neo4j-driver", file=sys.stderr
@@ -27,7 +27,7 @@ except Exception:
 
 import requests
 
-URI = "bolt://localhost:7687"
+URI = "bolt://neo4j:7687"
 USER = "neo4j"
 PASSWORD = "password123"
 
@@ -112,7 +112,7 @@ def load_restaurants(tx, rows: List[Dict[str, Any]]):
 
 def ingest(rows: List[Dict[str, Any]]):
     with driver.session() as session:
-        session.write_transaction(load_restaurants, rows)
+        session.execute_write(load_restaurants, rows)
 
 url = "https://nominatim.openstreetmap.org/search?addressdetails=1&format=jsonv2&limit=10&q="
 
@@ -149,6 +149,35 @@ def download_to_db(place:str, type:str):
 
     ingest(rows)
     print(f"Ingested {len(rows)} restaurants into Neo4j.")
+
+
+def query_neo4j(query: str) -> list[Record]:
+    """
+    Query Neo4j for restaurant information.
+    """
+    with driver.session() as session:
+        # result = session.run(
+        #     """
+        #     MATCH (r:Restaurant)
+        #     WHERE toLower(r.name) CONTAINS toLower($test)
+        #     RETURN r.name AS name, r.cuisine AS cuisine
+        #     """,
+        #     test=query
+        # )
+        result = session.run(
+            query=query
+        )
+
+        # return result
+        records = list(result)
+        # if not records:
+        #     return "NO_RESULTS"
+        # return "\n".join(
+        #     f"{r['name']} – {r['address']}" for r in records
+        # )
+
+        return records
+
 
 
 
