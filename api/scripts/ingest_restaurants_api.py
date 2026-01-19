@@ -16,6 +16,7 @@ import argparse
 import json
 import sys
 from typing import List, Dict, Any
+import search_web
 
 try:
     from neo4j import GraphDatabase
@@ -114,24 +115,21 @@ def ingest(rows: List[Dict[str, Any]]):
     with driver.session() as session:
         session.write_transaction(load_restaurants, rows)
 
-url = "https://nominatim.openstreetmap.org/search?addressdetails=1&format=jsonv2&limit=10&q="
+url = "https://nominatim.openstreetmap.org/search?addressdetails=1&format=jsonv2&limit=8&q="
 
-def main():
+def populate_db():
     parser = argparse.ArgumentParser()
     parser.add_argument(
         "--place", help="place"
     )
-    parser.add_argument(
-        "--type", help="type"
-    )
     args = parser.parse_args()
-    download_to_db(args.place, args.type)
+    download_to_db(args.place)
 
 
 # query = "warsaw+restaurant+asian"
-def download_to_db(place:str, type:str):
+def download_to_db(place:str):
     data = []
-    resp = requests.get(url + place + "+restaurant+" + type, headers=headers)
+    resp = requests.get(url + place + "+restaurant", headers=headers)
     resp.raise_for_status()
     data = resp.json()
 
@@ -149,8 +147,10 @@ def download_to_db(place:str, type:str):
 
     ingest(rows)
     print(f"Ingested {len(rows)} restaurants into Neo4j.")
+    for item in rows:
+        search_web.fetch_menu_data(item.get("name"), place)
 
 
 
 if __name__ == "__main__":
-    main()
+    populate_db()
