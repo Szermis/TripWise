@@ -13,10 +13,9 @@ Usage:
 """
 
 import argparse
-import json
 import sys
 from typing import List, Dict, Any
-import search_web
+from . import search_web
 
 try:
     from neo4j import GraphDatabase, Result, Record
@@ -153,29 +152,13 @@ def download_to_db(place:str):
 
 def query_neo4j(query: str) -> list[Record]:
     """
-    Query Neo4j for restaurant information.
+    Query Neo4j.
     """
     with driver.session() as session:
-        # result = session.run(
-        #     """
-        #     MATCH (r:Restaurant)
-        #     WHERE toLower(r.name) CONTAINS toLower($test)
-        #     RETURN r.name AS name, r.cuisine AS cuisine
-        #     """,
-        #     test=query
-        # )
         result = session.run(
             query=query
         )
-
-        # return result
         records = list(result)
-        # if not records:
-        #     return "NO_RESULTS"
-        # return "\n".join(
-        #     f"{r['name']} – {r['address']}" for r in records
-        # )
-
         return records
 
 

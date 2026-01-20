@@ -3,7 +3,7 @@ from pydantic import BaseModel
 
 from .config import settings
 from .agent import call_graph
-from scripts.ingest_restaurants_api import query_neo4j, download_to_db
+from .ingest_restaurants_api import query_neo4j, download_to_db
 
 
 router = APIRouter()

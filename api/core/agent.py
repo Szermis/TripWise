@@ -1,8 +1,6 @@
 from langchain_core.messages import HumanMessage
 from typing import Annotated
-
-from langchain_core.prompts import PromptTemplate
-from langchain_core.tools import tool
+from langchain.chat_models import init_chat_model
 from langgraph.checkpoint.memory import MemorySaver
 from langgraph.constants import START, END
 from langgraph.graph import StateGraph
@@ -11,11 +9,22 @@ from langchain_neo4j import Neo4jGraph, GraphCypherQAChain
 from pydantic import BaseModel, Field
 from typing_extensions import TypedDict
 
-from scripts.ingest_restaurants_api import query_neo4j, download_to_db
-
+from .ingest_restaurants_api import query_neo4j, download_to_db
 from .config import settings
-from langchain.chat_models import init_chat_model
 
+
+
+
+
+URI = "bolt://neo4j:7687"
+USER = "neo4j"
+PASSWORD = "password123"
+neo4j_graph = Neo4jGraph(url=URI, username=USER, password=PASSWORD)
+
+llm = init_chat_model(
+    "gpt-5-nano",
+    api_key=settings.OPENAI_API_KEY
+)
 
 # @tool
 # def check_db():
@@ -42,19 +51,6 @@ from langchain.chat_models import init_chat_model
 #     city -> city name in local language like "Warszawa" or "München"
 #     """
 #     download_to_db(city, "")
-
-
-URI = "bolt://neo4j:7687"
-USER = "neo4j"
-PASSWORD = "password123"
-neo4j_graph = Neo4jGraph(url=URI, username=USER, password=PASSWORD)
-
-llm = init_chat_model(
-    "gpt-5-nano",
-    api_key=settings.OPENAI_API_KEY
-)
-
-
 # llm_with_tools = llm.bind_tools([check_db, fit_db])
 
 
@@ -103,7 +99,7 @@ def fit_db_node(state: State):
 
     result = llm.with_structured_output(CityExtraction).invoke(prompt)
 
-    download_to_db(result.city, "")
+    download_to_db(result.city)
 
 
 def query_db_node(state: State):
