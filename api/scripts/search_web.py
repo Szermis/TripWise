@@ -23,10 +23,21 @@ driver = GraphDatabase.driver(URI, auth=(USER, PASSWORD))
 
 
 def fetch_menu_data(name: str, place: str):
-    results = DDGS().text(name + " " + place + " menu", max_results=3)
+    results = DDGS().text(name + " " + place + " menu", max_results=10)
     print("Search for menu items in: " + name)
 
-    for res in results:
+    response = client.responses.create(
+        model="gpt-5-nano",
+        instructions="Below is an array of restaurants and urls to their websites. Return the ids of the entries sorted in order of which is most likely to contain the menu of the restaurant. Return id's seperated by comma",
+        input=str(results),
+    )
+    o = response.output_text
+    ids = str(o).split(',')
+
+
+    for i in ids:
+        res = results[int(i)]
+
         html = requests.get(res["href"], headers=headers)
 
         website = html.text[:300_000]
@@ -40,6 +51,7 @@ def fetch_menu_data(name: str, place: str):
             output = response.output_text
 
             insert_from_json(name, output)
+            break;
         except:
                 print("Website to big")
 
@@ -87,6 +99,7 @@ def insert_from_json(rest_name: str, json_string: str, delimiter: str = ","):
 
     if not items:
         print(f"No valid menu items extracted for {rest_name}")
+        raise Exception("No menu items")
         return
 
     with driver.session() as session:
