@@ -16,6 +16,7 @@ import argparse
 import json
 import sys
 from typing import List, Dict, Any
+import search_reviews
 import search_web
 from multiprocessing import Pool
 
@@ -153,6 +154,7 @@ def download_to_db(place:str):
 
     for item in rows:
         pool.apply_async(search_web.fetch_menu_data, [item.get("name"), place, ])
+        pool.apply_async(search_reviews.fetch_review_data, [item.get("name"), place, ])
 
     pool.close()
     pool.join()
