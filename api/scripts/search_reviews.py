@@ -22,13 +22,13 @@ headers = {
 driver = GraphDatabase.driver(URI, auth=(USER, PASSWORD))
 
 
-def fetch_menu_data(name: str, place: str):
-    results = DDGS().text(name + " " + place + " menu", max_results=10)
-    print("Search for menu items in: " + name)
+def fetch_review_data(name: str, place: str):
+    results = DDGS().text(name + " " + place + " opinie", max_results=10) # TODO: Szermis the language specyfic up to LLM
+    print("Search for reviews for: " + name)
 
     response = client.responses.create(
         model="gpt-5-nano",
-        instructions="Below is an array of restaurants and urls to their websites. Return the ids of the entries sorted in order of which is most likely to contain the menu of the restaurant. Return id's seperated by comma",
+        instructions="Below is an array of restaurants and urls to websites with reviews. Return the ids of the entries sorted in order of which is most likely to contain rewiews. Return id's seperated by comma",
         input=str(results),
     )
     o = response.output_text
@@ -45,7 +45,7 @@ def fetch_menu_data(name: str, place: str):
         try:
             response = client.responses.create(
                 model="gpt-5-nano",
-                instructions="Bellow are contents of a page in html format. What can I order from the menu? Format the output as json containing an array of dishes and their prices in a folowing format: [{\"dish\":\"dish_name\", \"price\":0.00}]",
+                instructions="Bellow are contents of a page in html format. What are rewiews for restaurant? Format the output as json containing an array of rewiews and scores. Keep score from 1 to 5 and use following format: [{\"review\":\"review_text\", \"score\":1.5}]",
                 input=website,
             )
             output = response.output_text
@@ -57,7 +57,6 @@ def fetch_menu_data(name: str, place: str):
 
 
 def insert_from_json(rest_name: str, json_string: str, delimiter: str = ","):
-    # Normalize input to a list of dicts with keys 'dish' and 'price'
     items = []
     if not json_string:
         print(f"No json data to insert for {rest_name}")
@@ -73,34 +72,32 @@ def insert_from_json(rest_name: str, json_string: str, delimiter: str = ","):
         for line in lines:
             parts = [p.strip() for p in line.split(delimiter)]
             if len(parts) >= 1:
-                dish = parts[0]
-                price = parts[1] if len(parts) > 1 else None
-                data.append({"dish": dish, "price": price})
+                review = parts[0]
+                score = parts[1] if len(parts) > 1 else None
+                data.append({"review": review, "score": score})
 
-    # Normalize to expected structure: list of {"dish": ..., "price": ...}
     if isinstance(data, dict):
-        if "dish" in data or "name" in data:
-            dish = data.get("dish") or data.get("name")
-            price = data.get("price")
-            items = [{"dish": str(dish), "price": price}]
+        if "review" in data or "name" in data:
+            review = data.get("review") or data.get("name")
+            score = data.get("score")
+            items = [{"review": str(review), "score": score}]
         else:
             items = []
     elif isinstance(data, list):
         for row in data:
             if isinstance(row, dict):
-                dish = row.get("dish") or row.get("name") or row.get("item")
-                price = row.get("price")
-                if dish is not None:
-                    items.append({"dish": str(dish), "price": price})
+                review = row.get("review") or row.get("name") or row.get("item")
+                score = row.get("score")
+                if review is not None:
+                    items.append({"review": str(review), "score": score})
             else:
                 continue
     else:
         items = []
 
     if not items:
-        print(f"No valid menu items extracted for {rest_name}")
-        raise Exception("No menu items")
-        return
+        print(f"No valid reviews extracted for {rest_name}")
+        raise Exception("No reviews")
 
     with driver.session() as session:
 
@@ -109,11 +106,11 @@ def insert_from_json(rest_name: str, json_string: str, delimiter: str = ","):
                 """
                 UNWIND $rows AS row
                 MERGE (r:Restaurant {name: $rest_name})
-                MERGE (m:Menu {name: row.dish})
-                FOREACH (ignore IN CASE WHEN row.price IS NOT NULL THEN [1] ELSE [] END |
-                    SET m.price = row.price
+                MERGE (m:Reviews {name: row.review})
+                FOREACH (ignore IN CASE WHEN row.score IS NOT NULL THEN [1] ELSE [] END |
+                    SET m.score = row.score
                 )
-                MERGE (m)-[:servedIn]->(r)
+                MERGE (m)-[:isAbout]->(r)
                 """,
                 rest_name=rest_name_param,
                 rows=rows_param,
@@ -123,4 +120,4 @@ def insert_from_json(rest_name: str, json_string: str, delimiter: str = ","):
 
 
 if __name__ == "__main__":
-    fetch_menu_data("Restauracja Studencka", "Warszawa")
+    fetch_review_data("Restauracja Studencka", "Warszawa")
