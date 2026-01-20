@@ -45,7 +45,7 @@ def fetch_menu_data(name: str, place: str):
         try:
             response = client.responses.create(
                 model="gpt-5-nano",
-                instructions="Bellow are contents of a page in html format. What can I order from the menu? Format the output as json containing an array of dishes and their prices",
+                instructions="Bellow are contents of a page in html format. What can I order from the menu? Format the output as json containing an array of dishes and their prices in a folowing format: [{\"dish\":\"dish_name\", \"price\":0.00}]",
                 input=website,
             )
             output = response.output_text
