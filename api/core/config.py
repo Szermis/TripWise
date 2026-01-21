@@ -20,6 +20,11 @@ class Settings(BaseSettings):
     # CORS
     ALLOWED_ORIGINS: list[str] = ["http://localhost:3000"]
 
+    # NEO4J
+    NEO4J_URI: str = "your-neo4j-uri"
+    NEO4J_USER: str = "your-neo4j-user"
+    NEO4J_PASSWORD: str = "your-neo4j-password"
+
     @field_validator("ALLOWED_ORIGINS", mode="before")
     def parse_allowed_origins(cls, v):
         if isinstance(v, str):

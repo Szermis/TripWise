@@ -4,6 +4,9 @@ from neo4j import GraphDatabase
 import requests
 import os
 import json
+from dotenv import load_dotenv
+
+load_dotenv()
 
 client = OpenAI(
     # This is the default and can be omitted
@@ -11,9 +14,9 @@ client = OpenAI(
 )
 
 
-URI = "bolt://localhost:7687"
-USER = "neo4j"
-PASSWORD = "password123"
+URI = os.getenv("NEO4J_URI")
+USER = os.getenv("NEO4J_USER")
+PASSWORD = os.getenv("NEO4J_PASSWORD")
 
 headers = {
     "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
