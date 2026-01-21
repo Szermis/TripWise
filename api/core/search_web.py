@@ -4,16 +4,18 @@ from neo4j import GraphDatabase
 import requests
 import os
 import json
+from dotenv import load_dotenv
+
+load_dotenv()
 
 client = OpenAI(
     # This is the default and can be omitted
     api_key=os.environ.get("OPENAI_API_KEY"),
 )
 
-
-URI = "bolt://localhost:7687"
-USER = "neo4j"
-PASSWORD = "password123"
+URI = os.getenv("NEO4J_URI")
+USER = os.getenv("NEO4J_USER")
+PASSWORD = os.getenv("NEO4J_PASSWORD")
 
 headers = {
     "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
@@ -34,7 +36,6 @@ def fetch_menu_data(name: str, place: str):
     o = response.output_text
     ids = str(o).split(',')
 
-
     for i in ids:
         res = results[int(i)]
 
@@ -53,7 +54,7 @@ def fetch_menu_data(name: str, place: str):
             insert_from_json(name, output)
             break;
         except:
-                print("Website to big")
+            print("Website to big")
 
 
 def insert_from_json(rest_name: str, json_string: str, delimiter: str = ","):

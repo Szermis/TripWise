@@ -13,15 +13,17 @@ Usage:
 """
 
 import argparse
-import json
+import os
 import sys
 from typing import List, Dict, Any
-import search_reviews
-import search_web
+
+from .config import settings
+from . import search_reviews
+from . import search_web
 from multiprocessing import Pool
 
 try:
-    from neo4j import GraphDatabase
+    from neo4j import GraphDatabase, Result, Record
 except Exception:
     print(
         "Missing neo4j-driver. Install with: pip install neo4j-driver", file=sys.stderr
@@ -30,13 +32,10 @@ except Exception:
 
 import requests
 
-URI = "bolt://localhost:7687"
-USER = "neo4j"
-PASSWORD = "password123"
+driver = GraphDatabase.driver(settings.NEO4J_URI, auth=(settings.NEO4J_USER, settings.NEO4J_PASSWORD))
 
-driver = GraphDatabase.driver(URI, auth=(USER, PASSWORD))
-
-headers = {'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_11_5) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/50.0.2661.102 Safari/537.36'}
+headers = {
+    'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_11_5) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/50.0.2661.102 Safari/537.36'}
 
 CUISINE_KEYWORDS = [
     "Japanese",
@@ -82,19 +81,38 @@ def extract_name(item: Dict[str, Any]) -> str:
 
 
 def normalize_item(item: Dict[str, Any]) -> Dict[str, Any]:
+    print(item)
     name = extract_name(item)
     text_sources = []
-    if isinstance(item, dict):
-        text_sources.append(str(item.get("name")))
-        text_sources.append(str(item.get("display_name")))
-        if isinstance(item.get("address"), dict):
-            for v in item["address"].values():
-                if isinstance(v, str):
-                    text_sources.append(v)
-    combined = " ".join([t for t in text_sources if t])
-    cuisine = guess_cuisine_from_text(combined)
-    rating = 0.0
-    return {"name": name, "rating": rating, "cuisine": cuisine}
+    # if isinstance(item, dict):
+    #     text_sources.append(str(item.get("name")))
+    #     text_sources.append(str(item.get("display_name")))
+    #     if isinstance(item.get("address"), dict):
+    #         for v in item["address"].values():
+    #             if isinstance(v, str):
+    #                 text_sources.append(v)
+    # combined = " ".join([t for t in text_sources if t])
+    # cuisine = guess_cuisine_from_text(combined)
+    # rating = 0.0
+
+    address = item.get("address")
+    city = address.get("city", "")
+    city_block = address.get("city_block", "")
+    quarter = address.get("quarter", "")
+    suburb = address.get("suburb", "")
+    state = address.get("state", "")
+    country = address.get("country", "")
+    place_rank = item.get("place_rank", "")
+    return {
+        "name": name,
+        # "city_block": city_block,
+        # "quarter": quarter,
+        # "suburb": suburb,
+        # "state": state,
+        "city": city,
+        "country": country,
+        "place_rank": place_rank,
+    }
 
 
 def load_restaurants(tx, rows: List[Dict[str, Any]]):
@@ -102,12 +120,13 @@ def load_restaurants(tx, rows: List[Dict[str, Any]]):
         """
         UNWIND $rows AS row
         MERGE (r:Restaurant {name: row.name})
-        SET r.rating = CASE
-                           WHEN toFloat(row.rating) < 0 THEN 0
-                           WHEN toFloat(row.rating) > 5 THEN 5
-                           ELSE toFloat(row.rating)
-                         END,
-            r.cuisine = row.cuisine
+        SET 
+            r.city_block = row.city_block,
+            r.quarter = row.quarter,
+            r.suburb = row.suburb,
+            r.state = row.state,
+            r.country = row.country,
+            r.place_rank = row.place_rank
         """,
         rows=rows,
     )
@@ -115,9 +134,11 @@ def load_restaurants(tx, rows: List[Dict[str, Any]]):
 
 def ingest(rows: List[Dict[str, Any]]):
     with driver.session() as session:
-        session.write_transaction(load_restaurants, rows)
+        session.execute_write(load_restaurants, rows)
+
 
 url = "https://nominatim.openstreetmap.org/search?addressdetails=1&format=jsonv2&limit=8&q="
+
 
 def populate_db():
     parser = argparse.ArgumentParser()
@@ -129,7 +150,7 @@ def populate_db():
 
 
 # query = "warsaw+restaurant+asian"
-def download_to_db(place:str):
+def download_to_db(place: str):
     data = []
     resp = requests.get(url + place + "+restaurant", headers=headers)
     resp.raise_for_status()
@@ -160,6 +181,16 @@ def download_to_db(place:str):
     pool.join()
 
 
+def query_neo4j(query: str) -> list[Record]:
+    """
+    Query Neo4j.
+    """
+    with driver.session() as session:
+        result = session.run(
+            query=query
+        )
+        records = list(result)
+        return records
 
 
 if __name__ == "__main__":
