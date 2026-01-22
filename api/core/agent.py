@@ -1,3 +1,6 @@
+import json
+import os
+
 from langchain_core.messages import HumanMessage
 from typing import Annotated
 from langchain.chat_models import init_chat_model
@@ -7,6 +10,7 @@ from langgraph.graph import StateGraph
 from langgraph.graph.message import add_messages
 from langchain_neo4j import Neo4jGraph, GraphCypherQAChain
 from pydantic import BaseModel, Field
+from pydantic_core.core_schema import json_or_python_schema
 from typing_extensions import TypedDict
 
 from .ingest_restaurants_api import query_neo4j, download_to_db
@@ -88,27 +92,55 @@ def query_db_node(state: State):
     neo4j_graph.refresh_schema()
 
     chain = GraphCypherQAChain.from_llm(
-        llm, graph=neo4j_graph, verbose=True, allow_dangerous_requests=True
+        llm,
+        graph=neo4j_graph,
+        validate_cypher=True,
+        return_intermediate_steps=True,
+        allow_dangerous_requests=True,
+        verbose=True
     )
 
-    result = chain.invoke({"query": state['user_input']})['result']
-    print(f'RESULT: {result}')
+    question = state['user_input']
+
+    result = chain.invoke({"query": question})
+
+    print(json.dumps(result, indent=2))
+
+    contexts = result['intermediate_steps'][1]['context']
+    answer = result['result']
+
+    try:
+        dataset_files_count = len(os.listdir('./dataset'))
+    except:
+        dataset_files_count = 0
+
+    path = f'./dataset/{dataset_files_count}.json'
+    with open(path, 'w') as f:
+        f.write(json.dumps({
+            "question": question,
+            "contexts": contexts,
+            "answer": answer,
+        }, indent=2))
+
+    os.chmod(path, 0o777)
+
+    print(f'RESULT: {answer}')
 
     do_not_know = llm.with_structured_output(BooleanAnswer).invoke(f"""
     Check if this message means "Don't know the answer":
-    {result}
+    {answer}
     """).result
 
     print(f'DO NOT KNOW: {do_not_know}')
 
     if do_not_know:
         return {
-            "messages": [result],
+            "messages": [answer],
             "next": "fit_db_node"
         }
     else:
         return {
-            "messages": [result],
+            "messages": [answer],
             "next": "end"
         }
 
