@@ -121,10 +121,7 @@ def load_restaurants(tx, rows: List[Dict[str, Any]]):
         UNWIND $rows AS row
         MERGE (r:Restaurant {name: row.name})
         SET 
-            r.city_block = row.city_block,
-            r.quarter = row.quarter,
-            r.suburb = row.suburb,
-            r.state = row.state,
+            r.city = row.city,
             r.country = row.country,
             r.place_rank = row.place_rank
         """,
