@@ -18,6 +18,10 @@ services:
 
   api:
     image: api
+    depends_on:
+      # Make sure the application only starts when the DB is indeed ready
+      neo4j:
+        condition: service_healthy
     build:
       context: ./api
     ports:
@@ -28,6 +32,12 @@ services:
   neo4j:
     image: neo4j:5.15
     container_name: neo4j
+    healthcheck:
+      test: wget http://localhost:7474 || exit 1
+      interval: 1s
+      timeout: 10s
+      retries: 20
+      start_period: 3s
     ports:
       - "7474:7474"   # Neo4j Browser
       - "7687:7687"   # Bolt protocol
